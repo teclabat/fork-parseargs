@@ -62,7 +62,7 @@ test validate-2.2 {validator throws error} -body { #<<<
 	   	[dict get $o -errorcode]
 } -cleanup {
 	unset -nocomplain r o
-} -result {1 1 {PARSE_ARGS VALIDATION -rating}} -match regexp
+} -result {1 0 {PARSE_ARGS VALIDATION -rating}} -match regexp
 #>>>
 test validate-3.1 {validator with apply, throws error} -body { #<<<
 	list [catch {
