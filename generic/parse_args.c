@@ -92,22 +92,22 @@ struct interp_cx {
 struct parse_spec {
 	char**					options;
 	struct option_info*		option;
-	int						option_count;
+	Tcl_Size				option_count;
 	Tcl_Obj*				usage_msg;
 	struct option_info*		positional;
-	int						positional_arg_count;
+	Tcl_Size				positional_arg_count;
 	struct option_info*		multi;
-	int						multi_count;
+	Tcl_Size				multi_count;
 	Tcl_Obj**				all;
-	int						all_count;
+	Tcl_Size				all_count;
 };
 
 struct option_info {
-	int			arg_count;	// -1: store the option name in -name if present; -2: comsume all remaining args
+	Tcl_Size	arg_count;	// -1: store the option name in -name if present; -2: comsume all remaining args
 	int			supplied;
 	int			is_args;	// args style processing - consume all remaining arguments
 	int			required;
-	int			multi_idx;		// If this option is part of a multi select
+	Tcl_Size	multi_idx;		// If this option is part of a multi select
 	Tcl_Obj*	param;			// What this param is called in the spec
 	Tcl_Obj*	name;			// The name that will store this params value
 	Tcl_Obj*	default_val;	// NULL if no default
@@ -115,7 +115,7 @@ struct option_info {
 	Tcl_Obj*	enum_choices;	// NULL if not an enum, also stores multi_choices for a multi
 	Tcl_Obj*	comment;		// NULL if no comment
 	int			alias;			// boolean
-	int			all_idx;		// >= 0 - collect all instances of this option as a list, accumulated in a list at this index
+	Tcl_Size	all_idx;		// >= 0 - collect all instances of this option as a list, accumulated in a list at this index
 	int			end_options;	// boolean.  Treat seeing this option as if -- followed immediately after it
 };
 
@@ -212,7 +212,7 @@ static void free_option_info(struct option_info* option) //{{{
 static void free_parse_spec(struct parse_spec** specPtr) //{{{
 {
 	struct parse_spec*	spec = *specPtr;
-	int					i;
+	Tcl_Size			i;
 
 	if (*specPtr != NULL) {
 		//fprintf(stderr, "Freeing: %p\n", spec);
@@ -279,7 +279,7 @@ static void dup_internal_rep(Tcl_Obj* src, Tcl_Obj* dest) // This shouldn't actu
 	Tcl_ObjInternalRep	newir;
 	struct parse_spec*	spec = (struct parse_spec*)ckalloc(sizeof(struct parse_spec));
 	struct parse_spec*	old =  (struct parse_spec*)ir->twoPtrValue.ptr1;
-	int		i;
+	Tcl_Size	i;
 
 	//fprintf(stderr, "in dup_internal_rep\n");
 
@@ -335,7 +335,8 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 	struct interp_cx*	l = (struct interp_cx*)Tcl_GetAssocData(interp, "parse_args", NULL);
 	Tcl_Obj**			ov;
 	Tcl_Size			oc, str_len, settingc;
-	int					i, j, code=TCL_OK, index, o_i=0, p_i=0;
+	Tcl_Size			i, j, o_i=0, p_i=0;
+	int					code=TCL_OK, index;
 	const char*			str;
 	Tcl_Obj*			name;
 	Tcl_Obj**			settingv;
@@ -472,7 +473,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 					if (strcmp("all", Tcl_GetString(settingv[j])) == 0) {
 						option->arg_count = -2;
 					} else {
-						TEST_OK_LABEL(err, code, Tcl_GetIntFromObj(interp, settingv[j], &option->arg_count));
+						TEST_OK_LABEL(err, code, Tcl_GetSizeIntFromObj(interp, settingv[j], &option->arg_count));
 						if (option->arg_count < 0)
 							THROW_ERROR_LABEL(err, code, "-args cannot be negative");
 					}
@@ -548,7 +549,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 		}
 
 		if (option->arg_count == -1) {
-			int			multi_idx;
+			Tcl_Size	multi_idx;
 			Tcl_Obj*	multi_choices;
 			const char*	multi_val;
 			Tcl_Size	multi_val_len;
@@ -566,7 +567,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 			} else {
 				Tcl_Obj*	idx_obj = NULL;
 				TEST_OK_LABEL(err, code, Tcl_DictObjGet(interp, multi_config_loan, l->obj[L_IDX], &idx_obj));
-				TEST_OK_LABEL(err, code, Tcl_GetIntFromObj(interp, idx_obj, &multi_idx));
+				TEST_OK_LABEL(err, code, Tcl_GetSizeIntFromObj(interp, idx_obj, &multi_idx));
 				TEST_OK_LABEL(err, code, Tcl_DictObjGet(interp, multi_config_loan, l->obj[L_CHOICES], &multi_choices));
 			}
 			TEST_OK_LABEL(err, code, Tcl_ListObjAppendElement(interp, multi_choices, option->param));
@@ -587,9 +588,9 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 
 			TEST_OK_LABEL(err, code, Tcl_DictObjGet(interp, multi_config_loan, l->obj[L_ALL], &multi_all));
 			if (all_specified || multi_all) {
-				int all_idx;
+				Tcl_Size all_idx;
 				if (multi_all) {
-					TEST_OK_LABEL(err, code, Tcl_GetIntFromObj(interp, multi_all, &all_idx));
+					TEST_OK_LABEL(err, code, Tcl_GetSizeIntFromObj(interp, multi_all, &all_idx));
 				} else {
 					all_idx = spec->all_count++;
 				}
@@ -613,7 +614,8 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 		Tcl_Obj*	val;
 		Tcl_Obj*	idx_obj;
 		Tcl_Obj*	multi_config_loan = NULL;
-		int			done, idx;
+		int			done;
+		Tcl_Size	idx;
 
 		spec->multi = ckalloc(sizeof(struct option_info) * spec->multi_count);
 		memset(spec->multi, 0, sizeof(struct option_info) * spec->multi_count);
@@ -624,7 +626,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 
 			//fprintf(stderr, "multi config for %s: %s\n", Tcl_GetString(name), Tcl_GetString(multi_config_loan));
 			TEST_OK_LABEL(err_search, code, Tcl_DictObjGet(interp, multi_config_loan, l->obj[L_IDX], &idx_obj));
-			TEST_OK_LABEL(err_search, code, Tcl_GetIntFromObj(interp, idx_obj, &idx));
+			TEST_OK_LABEL(err_search, code, Tcl_GetSizeIntFromObj(interp, idx_obj, &idx));
 			if (idx < 0 || idx >= spec->multi_count) {
 				THROW_ERROR_LABEL(err_search, code, "Got out of bounds multi_count ", Tcl_GetString(idx_obj), " for option \"", Tcl_GetString(name));
 			}
@@ -652,7 +654,7 @@ static int compile_parse_spec(Tcl_Interp* interp, Tcl_Obj* obj, struct parse_spe
 
 			TEST_OK_LABEL(err_search, code, Tcl_DictObjGet(interp, multi_config_loan, l->obj[L_ALL],  &val));
 			if (val) {
-				TEST_OK_LABEL(err_search, code, Tcl_GetIntFromObj(interp, val, &multi->all_idx));
+				TEST_OK_LABEL(err_search, code, Tcl_GetSizeIntFromObj(interp, val, &multi->all_idx));
 			} else {
 				multi->all_idx = -1;
 			}
@@ -754,7 +756,7 @@ static int validate(Tcl_Interp* interp, struct option_info* option, Tcl_Obj* val
 #else
 			Tcl_Obj*	cmd[oc+1];
 #endif
-			int			i;
+			Tcl_Size	i;
 
 			for (i=0; i<oc; i++) Tcl_IncrRefCount(cmd[i] = ov[i]);
 			Tcl_IncrRefCount(cmd[oc] = val);
@@ -833,7 +835,8 @@ static int parse_args(ClientData cdata, Tcl_Interp* interp, int objc, Tcl_Obj *c
 	struct interp_cx*	l = (struct interp_cx*)cdata;
 	Tcl_Obj**	av;
 	Tcl_Size	ac;
-	int			i, check_options=1, positional_arg=0;
+	Tcl_Size	i;
+	int			check_options=1, positional_arg=0;
 	struct parse_spec*	spec = NULL;
 	Tcl_Obj*	res = NULL;
 	Tcl_Obj*	val = NULL;
@@ -1085,7 +1088,7 @@ finally:
 static void free_interp_cx(ClientData cdata, Tcl_Interp* interp) //{{{
 {
 	struct interp_cx*	l = (struct interp_cx*)cdata;
-	int					i;
+	Tcl_Size			i;
 
 	if (l) {
 		for (i=0; i<L_end; i++)
@@ -1108,11 +1111,11 @@ int Parse_args_Init(Tcl_Interp* interp) //{{{
 	int					code = TCL_OK;
 	struct interp_cx*	l = NULL;
 	Tcl_Namespace*		ns = NULL;
-	int					i;
+	Tcl_Size			i;
 
 	/* Require 8.6 or later (9.0 also ok) */
 #ifdef USE_TCL_STUBS
-	if (NULL == Tcl_InitStubs(interp, TCL_VERSION, 0))
+	if (NULL == Tcl_InitStubs(interp, "8.6-", 0))
 #else
 	if (NULL == Tcl_PkgRequire(interp, "Tcl", "8.6-", 0))
 #endif
@@ -1159,5 +1162,15 @@ int Parse_args_SafeInit(Tcl_Interp* interp) //{{{
 }
 
 //}}}
+
+// Tcl 9 lowercase aliases
+#ifdef WIN32
+extern DLLEXPORT
+#endif
+int parse_args_Init(Tcl_Interp* interp) { return Parse_args_Init(interp); }
+#ifdef WIN32
+extern DLLEXPORT
+#endif
+int parse_args_SafeInit(Tcl_Interp* interp) { return Parse_args_SafeInit(interp); }
 
 // vim: foldmethod=marker foldmarker={{{,}}} ts=4 shiftwidth=4
